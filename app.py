@@ -41,7 +41,7 @@ else:
     def list_jsp_files():
         try:
             files = s3_list_jsp_files("jsp-legacy-codes")
-            files = [f.split("/")[-1] for f in files if f.endswith(".jsp")]
+            files = [for f in files if f.endswith(".jsp")]
             files.sort()
             return files
         except Exception as e:
