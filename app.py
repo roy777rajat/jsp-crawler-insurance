@@ -46,7 +46,7 @@ if is_local_environment():
 else:
     def list_jsp_files():
         if not check_aws_connection():
-            st.error("❌ Unable to connect to AWS S3. Please check your credentials.")
+            st.error("❌ Unable to connect to AWS. Please check your credentials.")
             return []
     
         try:
