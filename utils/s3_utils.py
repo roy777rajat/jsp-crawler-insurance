@@ -14,7 +14,7 @@ def get_jsp_html(bucket_name, key):
 
 def check_aws_connection():
     try:
-        s3 = boto3.client("s3")
+        s3 = get_s3_client()
         s3.list_buckets()
         print("✅ AWS connection successful.")
         return True
