@@ -2,7 +2,9 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from utils.s3_utils import list_jsp_files as s3_list_jsp_files
+#from utils.s3_utils import list_jsp_files as s3_list_jsp_files
+import utils.s3_utils as s3_utils
+
 
 # --- Config ---
 st.set_page_config(layout="wide", page_title="I-Helper")
@@ -40,7 +42,7 @@ if is_local_environment():
 else:
     def list_jsp_files():
         try:
-            files = s3_list_jsp_files("jsp-legacy-codes")
+            files = list_jsp_files("jsp-legacy-codes")
             files = [f.split("/")[-1] for f in files if f.endswith(".jsp")]
             files.sort()
             return files
