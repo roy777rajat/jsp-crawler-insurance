@@ -299,7 +299,7 @@ ws.onmessage = function(event) {{
         }}
 
         if (botMsg) {{
-            appendMessage("🤖 Bot", botMsg);
+            appendMessage("🤖 I-Helper(Rajat)", botMsg);
 
             var regex = /\\b(\\w+\\.jsp)\\b/gi;
             var matches = [];
