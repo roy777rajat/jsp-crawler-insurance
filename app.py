@@ -2,7 +2,11 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from utils.s3_utils import list_jsp_files_s3 as list_files, check_aws_connection as check_conn
+from utils.s3_utils import (
+    list_jsp_files_s3,
+    get_jsp_html,
+    check_aws_connection
+)
 #import utils.s3_utils as s3_utils
 
 
@@ -41,12 +45,12 @@ if is_local_environment():
             return []
 else:
     def list_jsp_files():
-        if not check_conn():
+        if not check_aws_connection():
             st.error("❌ Unable to connect to AWS S3. Please check your credentials.")
             return []
     
         try:
-            files = list_files("jsp-legacy-codes")
+            files = list_jsp_files_s3("jsp-legacy-codes")
             files = [f.split("/")[-1] for f in files if f.endswith(".jsp")]
             files.sort()
             return files
