@@ -113,7 +113,7 @@ components.html(f"""
         <div class="chat-message bot">Where can I see Claim Intimation date?</div>
     </div>
     <div id="chat-input">
-        <input type="text" id="userInput" placeholder="Ask your question...">
+        <input type="text" id="userInput" placeholder="Ask your question..." maxlength="25">
         <button id="sendBtn">Send</button>
     </div>
 </div>
