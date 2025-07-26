@@ -6,8 +6,9 @@ def get_s3_client():
         "s3",
         aws_access_key_id=st.secrets["aws"]["aws_access_key_id"],
         aws_secret_access_key=st.secrets["aws"]["aws_secret_access_key"],
-        region_name=st.secrets["aws"]["region"]
+        region_name=st.secrets["aws"]["region_name"]
     )
+    # return boto3.client("s3")
 
 def list_jsp_files_s3(bucket_name):
     try:

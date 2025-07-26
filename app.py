@@ -43,10 +43,22 @@ if is_local_environment():
         except Exception as e:
             st.error(f"Error listing local JSP files: {e}")
             return []
+        # if not check_aws_connection():
+        #     st.error("❌ Unable to connect to AWS from local. Please check your credentials.")
+        #     return []
+    
+        # try:
+        #     files = list_jsp_files_s3("jsp-legacy-codes")
+        #     files = [f.split("/")[-1] for f in files if f.endswith(".jsp")]
+        #     files.sort()
+        #     return files
+        # except Exception as e:
+        #     st.error(f"Error listing S3 JSP files: {e}")
+        #     return []
 else:
     def list_jsp_files():
         if not check_aws_connection():
-            st.error("❌ Unable to connect to AWS. Please check your credentials.")
+            st.error("❌ Unable to connect to AWS from streamlit. Please check your credentials.")
             return []
     
         try:
