@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from utils.s3_utils import list_jsp_files_s3 as list_jsp_files_s3,check_aws_connection
+from utils.s3_utils import list_jsp_files_s3,check_aws_connection as list_jsp_files_s3,check_aws_connection
 #import utils.s3_utils as s3_utils
 
 
