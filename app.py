@@ -71,7 +71,8 @@ components.html(f"""
 </div>
 
 <div id="main-dashboard">
-    <h1>📊 Insurance KPI Dashboard</h1>
+    <h1>📊 Insurance Intelligence Console
+</h1>
     <div class="dashboard">
         <div class="kpi-card"><div class="kpi-title">Claims</div><div class="kpi-value">1,240</div></div>
         <div class="kpi-card"><div class="kpi-title">Quotations</div><div class="kpi-value">3,850</div></div>
