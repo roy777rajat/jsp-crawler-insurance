@@ -5,7 +5,9 @@ import json
 from utils.s3_utils import (
     list_jsp_files_s3,
     get_jsp_html,
-    check_aws_connection
+    check_aws_connection,
+    get_websocket_url_local,
+    get_websocket_url_server
 )
 #import utils.s3_utils as s3_utils
 
@@ -14,6 +16,7 @@ from utils.s3_utils import (
 st.set_page_config(layout="wide", page_title="I-Helper")
 JSP_FOLDER = r"E:\01. Python Basic\jsp-crwaler-ai\jsp"
 
+websocket_url =""
 # --- Utils ---
 # def list_jsp_files(directory):
 #     try:
@@ -35,27 +38,27 @@ def is_local_environment():
 
 # --- JSP Loader: Local or S3 ---
 if is_local_environment():
+    websocket_url = get_websocket_url_local()
+    if websocket_url is None:
+        st.error("Running in local environment. Websocket URL not found.")
+    else:
+        st.info("Running in Local Environment. Websocket URL is set to: " + websocket_url)
     def list_jsp_files():
         try:
             files = [f for f in os.listdir(JSP_FOLDER) if f.endswith(".jsp")]
             files.sort()
+            
             return files
         except Exception as e:
             st.error(f"Error listing local JSP files: {e}")
             return []
-        # if not check_aws_connection():
-        #     st.error("❌ Unable to connect to AWS from local. Please check your credentials.")
-        #     return []
-    
-        # try:
-        #     files = list_jsp_files_s3("jsp-legacy-codes")
-        #     files = [f.split("/")[-1] for f in files if f.endswith(".jsp")]
-        #     files.sort()
-        #     return files
-        # except Exception as e:
-        #     st.error(f"Error listing S3 JSP files: {e}")
-        #     return []
 else:
+    websocket_url = get_websocket_url_server()
+    if websocket_url is None:
+        st.error("Running in Server environment. Websocket URL not found.")
+    else:
+        st.info("Running in Server Environment. Websocket URL is set to: " + websocket_url)
+    
     def list_jsp_files():
         if not check_aws_connection():
             st.error("Unable to connect to AWS from streamlit. Please check your credentials.")
@@ -65,6 +68,7 @@ else:
             files = list_jsp_files_s3("jsp-legacy-codes")
             files = [f.split("/")[-1] for f in files if f.endswith(".jsp")]
             files.sort()
+            
             return files
         except Exception as e:
             st.error(f"Error listing S3 JSP files: {e}")
@@ -84,6 +88,7 @@ jsp_buttons_html = "".join(
     f'<button class="jsp-btn" data-jsp="{jsp}">{jsp.replace(".jsp", "")}</button><br>'
     for jsp in jsp_files
 )
+
 
 
 components.html(f"""
@@ -305,7 +310,8 @@ function blinkButtons(jspNames) {{
     }});
 }}
 
-var ws = new WebSocket("wss://4hnchd4nrk.execute-api.eu-west-1.amazonaws.com/production");
+var ws = new WebSocket("{websocket_url}");
+
 
 ws.onopen = function() {{
     appendMessage("🟢", "Connected to I-Helper, Your 24x7 assistant !! @Powered by Rajat");

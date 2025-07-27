@@ -1,5 +1,6 @@
 import boto3
 import streamlit as st
+import os
 
 def get_s3_client():
     return boto3.client(
@@ -41,3 +42,9 @@ def check_aws_connection():
     except Exception as e:
         print(f"❌ AWS connection failed: {e}")
         return False
+
+def get_websocket_url_local():
+    return os.getenv("WEBSOCKET_URL", "ws://localhost:8000")
+def get_websocket_url_server():
+    return st.secrets["aws"]["websocket_url"]
+    
