@@ -1,3 +1,7 @@
+# Author : Rajat and created open-source by Rajat on 2024-03-08
+# This code is part of a project to analyze JSP files using AWS Bedrock and store the results in a Neo4j graph database.
+# Its again one time or incremental run to extract data from JSP files in an S3 bucket and store it in Neo4j.
+
 import json
 import time
 import boto3
@@ -16,7 +20,7 @@ def get_secrets(secret_name):
         secret_dict = json.loads(response['SecretString'])
         return secret_dict
     except Exception as e:
-        print(f"? Failed to retrieve {secret_name} credentials: {e}")
+        print(f"Failed to retrieve {secret_name} credentials: {e}")
         raise
 
 secret =  get_secrets("dev/python/api")
@@ -47,7 +51,7 @@ def create_redis_index():
         redis_conn.ft(REDIS_INDEX_NAME).create_index(
             fields=[
                 TextField("page_name"),
-                TextField("text"),  # ? ADDED text field for context
+                TextField("text"),  
                 VectorField("embedding", "FLAT", {
                     "TYPE": "FLOAT32",
                     "DIM": REDIS_VECTOR_DIM,
@@ -56,16 +60,16 @@ def create_redis_index():
             ],
             definition=IndexDefinition(prefix=["doc:"], index_type=IndexType.HASH)
         )
-        print("? Redis vector index created.")
+        print("Redis vector index created.")
     except Exception as e:
-        print(f"?? Redis index may already exist or failed: {e}")
+        print(f"Redis index may already exist or failed: {e}")
 
 
 def upsert_to_redis(doc_id: str, embedding: list[float], metadata: dict):
     key = f"doc:{doc_id}"
     vector_bytes = np.array(embedding, dtype=np.float32).tobytes()
 
-    # ? Prepare plain text summary (fields + actions + relationships)
+    #  Prepare plain text summary (fields + actions + relationships)
     fields_text = f"Fields: {', '.join(metadata.get('fields', []))}"
     actions_text = f"Actions: {', '.join(metadata.get('actions', []))}"
     relationship_list = [
@@ -75,7 +79,7 @@ def upsert_to_redis(doc_id: str, embedding: list[float], metadata: dict):
     relationships_text = f"Relationships: {', '.join(relationship_list)}"
     flat_text = f"{fields_text}\n{actions_text}\n{relationships_text}"
 
-    # ? HSET command (note the use of commas, not colons!)
+    #  HSET command (note the use of commas, not colons!)
     redis_conn.execute_command(
         "HSET", key,
         "embedding", vector_bytes,
@@ -83,18 +87,18 @@ def upsert_to_redis(doc_id: str, embedding: list[float], metadata: dict):
         "text", flat_text
     )
 
-    print(f"? Upserted doc_id: {doc_id} into Redis")
+    print(f" Upserted doc_id: {doc_id} into Redis")
 
 
 
-    # ? Store vector, page_name, and contextual text
+    # Store vector, page_name, and contextual text
     redis_conn.execute_command(
         "HSET", key,
         "embedding", vector_bytes,
         "page_name", metadata["page_name"],
-        "text", flat_text  # ? ADDED: context used later in retrieval
+        "text", flat_text  #  ADDED: context used later in retrieval
     )
-    print(f"? Upserted doc_id: {doc_id} into Redis")
+    print(f" Upserted doc_id: {doc_id} into Redis")
 
 
 # === Titan Embedding ===
@@ -111,17 +115,17 @@ def generate_embedding(text: str, retries=3) -> list[float]:
                 body=json.dumps({"inputText": text})
             )
             raw_output = response['body'].read()
-            print("? Raw Bedrock response received.")
-            print("?? Calling Bedrock model:", model_id)
+            print(" Raw Bedrock response received.")
+            print("🔍 Calling Bedrock model:", model_id)
             
             result = json.loads(raw_output)
             embedding = result.get("embedding")
-            print(f"?? Embedding length: {len(embedding)}")
-            print(f"?? Byte size: {len(embedding) * 4}")
+            print(f" Embedding length: {len(embedding)}")
+            print(f" Byte size: {len(embedding) * 4}")
             return embedding
 
         except Exception as e:
-            print(f"? Titan embedding failed (attempt {attempt+1}): {e}")
+            print(f" Titan embedding failed (attempt {attempt+1}): {e}")
             time.sleep(1)
 
     raise Exception("Titan embedding failed after retries")
@@ -135,7 +139,7 @@ def fetch_all_pages_from_neo4j(tx):
         OPTIONAL MATCH (p)-[:SUPPORTS_ACTION]->(a:Action)
         OPTIONAL MATCH (e1:Entity)-[r:RELATED]->(e2:Entity)
         RETURN
-        p.name AS page_name,
+        coalesce(p.jsp_name, p.name) AS page_name,
         collect(DISTINCT f.name) AS fields,
         collect(DISTINCT a.name) AS actions,
         collect(DISTINCT {from: e1.name, to: e2.name, relation: r.type}) AS relationships,
@@ -172,14 +176,14 @@ def lambda_handler(event, context):
 
             try:
                 embedding_vector = generate_embedding(text_for_embedding)
-                print("?? Embedding length:", len(embedding_vector))  # Should be 1536
+                print("🧪 Embedding length:", len(embedding_vector))  # Should be 1536
 
                 vector_bytes = np.array(embedding_vector, dtype=np.float32).tobytes()
-                print("?? Byte size:", len(vector_bytes))  # Should be 6144
-                # ?? Embedding length: 1024
-                # ?? Byte size: 4096
+                print("📦 Byte size:", len(vector_bytes))  # Should be 6144
+                # 🧪 Embedding length: 1024
+                # 📦 Byte size: 4096
             except Exception as e:
-                print(f"? Embedding generation failed for page {page_name}: {e}")
+                print(f" Embedding generation failed for page {page_name}: {e}")
                 continue
 
             metadata = {
@@ -194,7 +198,7 @@ def lambda_handler(event, context):
                 upsert_to_redis(doc_id, embedding_vector, metadata)
                 total_docs_upserted += 1
             except Exception as e:
-                print(f"? Redis upsert failed for page {page_name}: {e}")
+                print(f" Redis upsert failed for page {page_name}: {e}")
                 continue
 
     neo4j_driver.close()

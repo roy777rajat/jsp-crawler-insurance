@@ -1,6 +1,11 @@
-import json
+# Created by Rajat on 2024-03-08
+# Tihs code is part of a project to analyze JSP files using AWS Bedrock and store the results in a Neo4j graph database.
+# One time or incremental run to extract data from JSP files in an S3 bucket and store it in Neo4j.
+
+import json 
 import boto3
-from neo4j import GraphDatabase
+import time
+from neo4j import GraphDatabase # Rajat : You have to install the neo4Jdriver
 
 
 secretsmanager = boto3.client("secretsmanager", region_name="eu-west-1")
@@ -10,10 +15,8 @@ def get_secrets(secret_name):
         secret_dict = json.loads(response['SecretString'])
         return secret_dict
     except Exception as e:
-        print(f"❌ Failed to retrieve {secret_name} credentials: {e}")
+        print(f" Failed to retrieve {secret_name} credentials: {e}")
         raise
-
-
 
 
 # === AWS Setup ===
@@ -32,41 +35,38 @@ BUCKET_NAME = "jsp-legacy-codes"
 JSP_PREFIX = ""  # Keep empty since JSPs are directly under root
 
 
-
 def lambda_handler(event, context):
-    print("=== 🚀 Lambda triggered! ===")
-    # List all JSPs in the specified S3 prefix
+    print("=== Rajat....Lambda triggered! ===")
     response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=JSP_PREFIX)
     if "Contents" not in response:
         return {"statusCode": 404, "body": "No JSPs found in the bucket."}
+    
+    with neo4j_driver.session() as session:
+        session.run("MATCH (n) DETACH DELETE n")
+        print("All data wiped out Neo4j graph cleared.")  # It has to be one time OR if you need to clear and fresh insrt can kepp
 
     for obj in response["Contents"]:
         key = obj["Key"]
-
         if not key.endswith(".jsp"):
-            continue  # Skip non-JSP files (safe filter)
+            continue
 
-        if key not in ["beneficiaryAdd.jsp", "fundTransfer.jsp","claimRequest.jsp"]:
-            continue  # ⏩ Skip all other JSPs for this test
-
-        print(f"\n=== 📄 Processing JSP: {key} ===")
-
-        # Read the JSP file content from S3
+        print(f"\n=== Processing JSP: {key} ===")
         jsp_code = s3.get_object(Bucket=BUCKET_NAME, Key=key)['Body'].read().decode("utf-8")
 
-        # === Claude Prompt Template ===
-        prompt = f"""  # ✅ Updated (improved formatting and clarity)
-You are a Legacy JSP Page Analyst for an Insurance company.Output ONLY the JSON in exact format. Do NOT add explanations or any other text.
+        prompt = f"""
+You are a Legacy JSP Page Analyst for an Insurance company. Output ONLY the JSON in exact format. Do NOT add explanations or any other text.
 
 Given this JSP page, extract:
 1. Page name
-2. List of attributes used (input fields, selects, textareas) like policyNumber, dob, sumAssured
-3. Actions performed (e.g., SubmitClaim, UpdatePolicy)
-4. Relationships between fields and entities
+2. JSP file name (exact full filename like PolicyCancellation.jsp)
+3. List of attributes used (input fields, selects, textareas) like policyNumber, dob, sumAssured
+4. Actions performed (e.g., SubmitClaim, UpdatePolicy)
+5. Relationships between fields and entities
 
 Output JSON format:
 {{
   "page_name": "...",
+  "jsp_name": "...",
   "fields": ["...", "..."],
   "actions": ["...", "..."],
   "relationships": [{{"from": "...", "to": "...", "relation": "..."}}]
@@ -79,58 +79,42 @@ JSP Page Content:
 """
 
         try:
-            # Call Claude 3 Haiku via Bedrock
-            response = bedrock.invoke_model(
-                modelId="anthropic.claude-3-haiku-20240307-v1:0",  # ✅ Updated (clarified exact model ID)
-                contentType="application/json",
-                accept="application/json",
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 1000
-                })
-            )
-
+            response = call_bedrock_with_retry(bedrock, prompt)
             raw_output = response['body'].read()
             output = json.loads(raw_output)
-            content = output['content'][0]['text']  # ✅ Updated (to match Bedrock's actual Claude structure)
+            content = output['content'][0]['text']
 
             print("\n=== 🧠 Claude Raw Response ===")
-            print(content[:1000])  # ✅ Updated (truncate for readability)
+            print(content[:1000])
 
             try:
-                print("\n=== ✅ Parsed Claude JSON ===")
+                print("\n=== Rajat Sucessfully....Parsed Claude JSON ===")
                 extracted = json.loads(content)
                 print(json.dumps(extracted, indent=2))
 
-                # === Optional: Save Results to S3 or DynamoDB ===
-                # ✅ Uncomment and configure if persistence is needed
-                # s3.put_object(
-                #     Bucket="jsp-legacy-results",
-                #     Key=f"outputs/{key}.json",
-                #     Body=json.dumps(extracted, indent=2),
-                #     ContentType="application/json"
-                # )
+                
+                print(f"DEBUG Extracted | page_name: {extracted.get('page_name')}, jsp_name: {extracted.get('jsp_name')}, fields: {extracted.get('fields')}, actions: {extracted.get('actions')}")
 
             except Exception as e:
-                print("\n⚠️ Claude JSON parsing failed")
+                print("\nClaude JSON parsing failed")
                 print(f"Error: {e}")
                 print("Raw text snippet:", content[:500])
                 continue
 
         except Exception as e:
-            print(f"\n❌ Claude processing failed for {key}: {e}")
+            print(f"\n Claude processing failed for {key}: {e}")
             continue
         
-        #=== Push to Neo4j ===
         with neo4j_driver.session() as session:
             session.write_transaction(insert_into_neo4j, extracted)
             
     neo4j_driver.close()
     return {"statusCode": 200, "body": "Claude responses printed for all JSPs."}
 
+
 def insert_into_neo4j(tx, data):
     page = data.get("page_name", "UnknownPage")
+    jsp_name = data.get("jsp_name", "Unknown.jsp")
     fields = data.get("fields", [])
     actions = data.get("actions", [])
     relationships = data.get("relationships", [])
@@ -138,32 +122,36 @@ def insert_into_neo4j(tx, data):
     total_nodes_created = 0
     total_rels_created = 0
 
-    # Create Page node
-    result = tx.run("MERGE (p:Page {name: $page})", page=page)
-    summary = result.consume()
-    total_nodes_created += summary.counters.nodes_created
+    # Create and return the Page node to reuse it
+    result = tx.run("""
+        MERGE (p:Page {name: $page})
+        SET p.jsp_name = $jsp_name
+        RETURN p
+    """, page=page, jsp_name=jsp_name)
+    page_node = result.single()["p"]
 
-    # Create Field nodes
     for field in fields:
         result = tx.run("""
             MERGE (f:Field {name: $field})
-            MERGE (p:Page {name: $page})-[:HAS_FIELD]->(f)
+            WITH f
+            MATCH (p:Page {name: $page})
+            MERGE (p)-[:HAS_FIELD]->(f)
         """, field=field, page=page)
         summary = result.consume()
         total_nodes_created += summary.counters.nodes_created
         total_rels_created += summary.counters.relationships_created
 
-    # Create Action nodes
     for action in actions:
         result = tx.run("""
             MERGE (a:Action {name: $action})
-            MERGE (p:Page {name: $page})-[:SUPPORTS_ACTION]->(a)
+            WITH a
+            MATCH (p:Page {name: $page})
+            MERGE (p)-[:SUPPORTS_ACTION]->(a)
         """, action=action, page=page)
         summary = result.consume()
         total_nodes_created += summary.counters.nodes_created
         total_rels_created += summary.counters.relationships_created
 
-    # Create Relationships between Entities
     for rel in relationships:
         src = rel.get("from")
         tgt = rel.get("to")
@@ -180,3 +168,27 @@ def insert_into_neo4j(tx, data):
 
     print(f"Inserted/merged {total_nodes_created} nodes and {total_rels_created} relationships for page '{page}'.")
 
+
+
+def call_bedrock_with_retry(bedrock, prompt, max_retries=5):
+    for attempt in range(max_retries):
+        try:
+            response = bedrock.invoke_model(
+                modelId="anthropic.claude-3-haiku-20240307-v1:0",
+                contentType="application/json",
+                accept="application/json",
+                body=json.dumps({
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1000
+                })
+            )
+            return response
+        except bedrock.exceptions.ThrottlingException as e:
+            wait_time = (2 ** attempt)
+            print(f"Throttled, retrying after {wait_time}s... (attempt {attempt + 1})")
+            time.sleep(wait_time)
+        except Exception as e:
+            print(f"Error calling Bedrock: {e}")
+            raise
+    raise Exception("Max retries exceeded due to throttling.")

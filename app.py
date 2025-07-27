@@ -58,7 +58,7 @@ if is_local_environment():
 else:
     def list_jsp_files():
         if not check_aws_connection():
-            st.error("❌ Unable to connect to AWS from streamlit. Please check your credentials.")
+            st.error("Unable to connect to AWS from streamlit. Please check your credentials.")
             return []
     
         try:
@@ -113,7 +113,7 @@ components.html(f"""
         <div class="chat-message bot">Where can I see Claim Intimation date?</div>
     </div>
     <div id="chat-input">
-        <input type="text" id="userInput" placeholder="Ask your question..." maxlength="25">
+        <input type="text" id="userInput" placeholder="Ask your question..." maxlength="250">
         <button id="sendBtn">Send</button>
     </div>
 </div>
@@ -292,12 +292,15 @@ function blinkButtons(jspNames) {{
     const lowerSet = jspNames.map(j => j.toLowerCase().trim());
     const allButtons = document.querySelectorAll('.jsp-btn');
     allButtons.forEach(btn => {{
-        const label = btn.textContent.toLowerCase().trim();
+        const label = btn.textContent.toLowerCase().trim()+".jsp";
+        console.log("Checking button:", label);
+        console.log("Against set:", lowerSet);
         if (lowerSet.includes(label)) {{
             btn.classList.add("blink");
+            console.log("Blinking button:", label);
             setTimeout(() => {{
                 btn.classList.remove("blink");
-            }}, 2000);
+            }}, 15000);
         }}
     }});
 }}
@@ -323,14 +326,28 @@ ws.onmessage = function(event) {{
         if (botMsg) {{
             appendMessage("🤖 I-Helper(Rajat)", botMsg);
 
-            var regex = /\\b(\\w+\\.jsp)\\b/gi;
-            var matches = [];
+            var regex = /`?(\w+\.jsp)`?/gi;
             var match;
+            var matchesSet = new Set();
+
             while ((match = regex.exec(botMsg)) !== null) {{
-                matches.push(match[1]);
+                
+                const cleaned = match[1].replace(/[^\w.]/g, '');
+                matchesSet.add(cleaned);
             }}
+            var matches = Array.from(matchesSet);
+
+            console.log("Raw unique matches:", matches);
+            
 
             var valid = matches.filter(m => jspFiles.includes(m));
+            
+            console.log("Valid JSP files:", valid);
+            if (valid.length > 0) {{
+                console.log("Relevant JSP files found:", valid);
+            }} else {{
+                console.log("No Relevant JSP files found:", valid);
+            }}
             if (valid.length > 0) {{
                 blinkButtons(valid);
             }}

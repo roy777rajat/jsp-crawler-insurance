@@ -1,3 +1,7 @@
+# Author: Rajat and created open-source by Rajat on 2024-03-08
+# This is part of a project to analyze JSP files using AWS Bedrock and store the results in a Redis vector database.
+# Its a main interactive QnA application that uses Redis for vector search and AWS Bedrock for LLM processing.
+    
 import json
 import boto3
 import redis
@@ -12,7 +16,7 @@ def get_secrets(secret_name):
         secret_dict = json.loads(response['SecretString'])
         return secret_dict
     except Exception as e:
-        print(f"? Failed to retrieve {secret_name} credentials: {e}")
+        print(f"Failed to retrieve {secret_name} credentials: {e}")
         raise
 
 secret =  get_secrets("dev/python/api")
@@ -67,7 +71,7 @@ def search_redis_vector(query_embedding):
 
 # === Claude Relevance Check ===
 def semantic_relevance_check(question: str, context: str) -> bool:
-    print(f"?? **** Context: {context}")
+    print(f"**** Context: {context}")
     prompt = (
         f"Question: \"{question}\"\n"
         f"Context: \"{context}\"\n"
@@ -88,10 +92,10 @@ def semantic_relevance_check(question: str, context: str) -> bool:
         raw_output = response['body'].read()
         output = json.loads(raw_output)
         content = output['content'][0]['text'].strip().lower()
-        print(f"?? Claude relevance check: {content}")
+        print(f"Claude relevance check: {content}")
         return content.startswith("yes")
     except Exception as e:
-        print(f"? Relevance check failed: {e}")
+        print(f"Relevance check failed: {e}")
         return False
 
 # === Claude Answer Generation ===
@@ -102,7 +106,7 @@ def generate_answer(question, context_docs):
     for doc in context_docs
     ])
 
-    prompt = f"Given the following context:\n{context_text}\n\nAnswer this question: {question}"
+    prompt = f"Given the following context:\n{context_text}\n\nAnswer this question related to JSP name: {question}"
     try:
         response = bedrock.invoke_model(
             modelId="anthropic.claude-3-haiku-20240307-v1:0",
@@ -119,13 +123,13 @@ def generate_answer(question, context_docs):
         content = output['content'][0]['text']
         return content
     except Exception as e:
-        print(f"\n? Claude processing failed: {e}")
+        print(f"\nClaude processing failed: {e}")
         return "An error occurred while generating the answer."
 
 # === Polish Claude Response ===
 def polish_answer(raw_answer, docs):
     if not docs:
-        return "? Sorry, I could not find anything relevant to your question."
+        return "❗ Sorry, I could not find anything relevant to your question."
     lines = raw_answer.strip().split("\n")
     main_lines = [line for line in lines if "likely" in line or "you would need to look" in line]
     if main_lines:
@@ -148,11 +152,11 @@ def lambda_handler(event, context):
 
     # Step 1: Generate embedding using Titan model
     query_embedding = generate_embedding_titan_embed(query_text)
-    print("? Query embedded")
+    print("Query embedded")
 
     # Step 2: Vector search from Redis
     docs = search_redis_vector(query_embedding)
-    print(f"? Found {len(docs)} docs")
+    print(f"Found {len(docs)} docs")
 
     # Step 3: No results case
     if not docs:
@@ -160,7 +164,7 @@ def lambda_handler(event, context):
             "statusCode": 200,
             "body": json.dumps({
                 "human": query_text,
-                "bot": "? Sorry, I could not find anything relevant to your question.",
+                "bot": "❗ Sorry, I could not find anything relevant to your question.",
                 "retrieved_docs": [],
                 "confidence": 0.0,
                 "follow_up": "Would you like to rephrase or ask something else?"
@@ -178,12 +182,12 @@ def lambda_handler(event, context):
     is_relevant = semantic_relevance_check(query_text, context_summary)
 
     if not is_relevant :
-        print("?? Irrelevant query (detected by Claude)")
+        print("Irrelevant query (detected by Claude)")
         return {
             "statusCode": 200,
             "body": json.dumps({
                 "human": query_text,
-                "bot": "? Sorry, I could not find anything relevant to your question.",
+                "bot": "❗ Sorry, I could not find anything relevant to your question.",
                 "retrieved_docs": [],
                 "confidence": 0.0,
                 "follow_up": "Would you like to ask something else related to JSP or UI?"
