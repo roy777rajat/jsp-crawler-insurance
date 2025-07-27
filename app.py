@@ -56,8 +56,6 @@ else:
     websocket_url = get_websocket_url_server()
     if websocket_url is None:
         st.error("Running in Server environment. Websocket URL not found.")
-    else:
-        st.info("Running in Server Environment. Websocket URL is set to: " + websocket_url)
     
     def list_jsp_files():
         if not check_aws_connection():
